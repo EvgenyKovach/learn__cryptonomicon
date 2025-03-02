@@ -24,7 +24,7 @@
     <!--        ></path>-->
     <!--      </svg>-->
     <!--    </div>-->
-    <div class="container test">
+    <div class="container">
       <section>
         <div class="flex">
           <div class="max-w-xs">
