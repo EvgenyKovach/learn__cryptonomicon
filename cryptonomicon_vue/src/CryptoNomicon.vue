@@ -276,6 +276,6 @@ export default {
 }
 
 #wallet {
-  transition: 0.5s;
+  transition: 0.6s;
 }
 </style>
