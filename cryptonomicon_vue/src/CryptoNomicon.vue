@@ -27,7 +27,7 @@
     <div class="container">
       <section>
         <div class="flex">
-          <div class="max-w-xs">
+          <div class="input-block max-w-xs">
             <label for="wallet" class="block text-sm font-medium text-gray-700"
               >Тикер</label
             >
@@ -183,6 +183,13 @@ export default {
       tips: [],
     }
   },
+  created() {
+    const tickersData = localStorage.getItem("crypto-list")
+
+    if (tickersData) {
+      this.tickers = JSON.parse(tickersData)
+    }
+  },
   methods: {
     inputTicker() {
       this.hasAlready = false
@@ -219,9 +226,12 @@ export default {
       } else {
         this.hasAlready = true
       }
+
+      localStorage.setItem("crypto-list", JSON.stringify(this.tickers))
     },
     delTicker(ticker) {
       this.tickers = this.tickers.filter((t) => t !== ticker)
+      localStorage.setItem("crypto-list", JSON.stringify(this.tickers))
     },
     normGraph() {
       const max = Math.max(...this.graph)
@@ -259,3 +269,13 @@ export default {
   },
 }
 </script>
+
+<style lang="css" scoped>
+.input-block {
+  min-width: 450px;
+}
+
+#wallet {
+  transition: 0.5s;
+}
+</style>
