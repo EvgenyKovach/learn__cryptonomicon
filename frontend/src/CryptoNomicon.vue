@@ -80,13 +80,31 @@
           </svg>
           Добавить
         </button>
+        <div class="filter">
+          <div class="input-block max-w-xs">
+            <input
+              v-model="filter"
+              class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
+            />
+          </div>
+          <button
+            class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >
+            Назад
+          </button>
+          <button
+            class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >
+            Вперед
+          </button>
+        </div>
       </section>
 
       <template v-if="tickers.length">
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="ticker in tickers"
+            v-for="ticker in filteredTickers()"
             :key="ticker.name"
             @click="selectTicker(ticker)"
             :class="{
@@ -181,6 +199,8 @@ export default {
       graph: [],
       hasAlready: false,
       tips: [],
+      filter: "",
+      page: 0,
     }
   },
   created() {
@@ -188,6 +208,10 @@ export default {
 
     if (tickersData) {
       this.tickers = JSON.parse(tickersData)
+      this.filtredTickers = this.tickers
+      this.tickers.forEach((ticker) => {
+        this.updTickerInfo(ticker.name)
+      })
     }
   },
   methods: {
@@ -207,31 +231,36 @@ export default {
       if (this.checkTickerInArray(newTicker.name)) {
         this.tickers.push(newTicker)
         setInterval(async () => {
-          const f = await fetch(
-            `https://min-api.cryptocompare.com/data/price?fsym=${newTicker.name}&tsyms=USD&api_key=9731ee504a34185c95f10c8219a7ccd5fb9efbf893ff97091c683545fe740e2c`
-          )
-
-          const data = await f.json()
-
-          if (data["USD"]) {
-            this.tickers.find((t) => t.name === newTicker.name).count =
-              data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
-          }
-
-          if (this.current?.name === newTicker.name) {
-            this.graph.push(data.USD)
-            this.graph.length > 30 ? this.graph.shift() : ""
-          }
+          this.updTickerInfo(newTicker.name)
         }, 3000)
       } else {
         this.hasAlready = true
       }
 
-      localStorage.setItem("crypto-list", JSON.stringify(this.tickers))
+      this.updLocalStorage(this.tickers)
+    },
+    updTickerInfo(tickerName) {
+      setInterval(async () => {
+        const f = await fetch(
+          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=9731ee504a34185c95f10c8219a7ccd5fb9efbf893ff97091c683545fe740e2c`
+        )
+
+        const data = await f.json()
+
+        if (data["USD"]) {
+          this.tickers.find((t) => t.name === tickerName).count =
+            data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
+        }
+
+        if (this.current?.name === tickerName) {
+          this.graph.push(data.USD)
+          this.graph.length > 30 ? this.graph.shift() : ""
+        }
+      }, 3000)
     },
     delTicker(ticker) {
       this.tickers = this.tickers.filter((t) => t !== ticker)
-      localStorage.setItem("crypto-list", JSON.stringify(this.tickers))
+      this.updLocalStorage(this.tickers)
     },
     normGraph() {
       const max = Math.max(...this.graph)
@@ -250,6 +279,12 @@ export default {
       )
 
       this.tips = await f.json()
+    },
+    updLocalStorage(tickers) {
+      localStorage.setItem("crypto-list", JSON.stringify(tickers))
+    },
+    filteredTickers() {
+      return this.tickers.filter((ticker) => ticker.name.includes(this.filter))
     },
   },
   async mounted() {
