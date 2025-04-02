@@ -44,7 +44,7 @@
             </div>
             <div
               class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
-              v-if="formatTips.length"
+              v-if="ticker.length"
             >
               <span
                 class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
@@ -88,19 +88,23 @@
             />
           </div>
           <button
-            class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            @click="page--"
+            :class="{ disabled: page <= 0 }"
+            class="filter-button my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
             Назад
           </button>
           <button
-            class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            :class="{ disabled: filteredTickers().length < 6 }"
+            @click="page++"
+            class="filter-button my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
             Вперед
           </button>
         </div>
       </section>
 
-      <template v-if="tickers.length">
+      <template v-if="filteredTickers().length">
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
@@ -204,6 +208,13 @@ export default {
     }
   },
   created() {
+    const windowData = Object.fromEntries(
+      new URL(window.location).searchParams.entries()
+    )
+
+    if (windowData.filter) this.filter = windowData.filter
+    if (windowData.page) this.page = windowData.page
+
     const tickersData = localStorage.getItem("crypto-list")
 
     if (tickersData) {
@@ -213,6 +224,8 @@ export default {
         this.updTickerInfo(ticker.name)
       })
     }
+
+    console.log(this.filteredTickers())
   },
   methods: {
     inputTicker() {
@@ -284,7 +297,24 @@ export default {
       localStorage.setItem("crypto-list", JSON.stringify(tickers))
     },
     filteredTickers() {
-      return this.tickers.filter((ticker) => ticker.name.includes(this.filter))
+      const start = +this.page * 6
+      const end = (+this.page + 1) * 6
+
+      console.log(end)
+      console.log(start)
+
+      return this.tickers
+        .filter((ticker) =>
+          ticker.name.toLowerCase().includes(this.filter.toLowerCase())
+        )
+        .slice(start, end)
+    },
+    pushStateWithChange() {
+      window.history.pushState(
+        null,
+        document.title,
+        `${window.location.pathname}?filter=${this.filter}&page=${this.page}`
+      )
     },
   },
   async mounted() {
@@ -302,6 +332,16 @@ export default {
       })
     },
   },
+  watch: {
+    filter() {
+      this.page = 0
+      this.pushStateWithChange()
+      console.log("oijk")
+    },
+    page() {
+      this.pushStateWithChange()
+    },
+  },
 }
 </script>
 
@@ -312,5 +352,14 @@ export default {
 
 #wallet {
   transition: 0.6s;
+}
+
+.filter-button {
+  margin-right: 10px;
+}
+
+.disabled {
+  pointer-events: none;
+  opacity: 0.3;
 }
 </style>
