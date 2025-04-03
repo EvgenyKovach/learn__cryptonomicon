@@ -24,6 +24,19 @@
     <!--        ></path>-->
     <!--      </svg>-->
     <!--    </div>-->
+    <!-- 
+      @todo 
+      2. При удалении не сбрасывается interval timer | crit 
+      7. График ужасно выглядит если будет много цен |  crit  
+      8. Наличие в состоянии зависимых данных | crit
+      3. Кол-во запросов (сократить) | crit 
+      4. Запросы кода напрямую в коде (???) | crit 
+      5. Обработка ошибок (api) | crit 
+      1. Одинаковый код в watch | major
+      9. localStorage и анонимные вкладки | major 
+      6. Удаление тикера не измения localStorage | minor
+      10. Маг. строки и числа (url, 5000ms задержки, ключ, кол-во запросов на стр) | minor
+    -->
     <div class="container">
       <section>
         <div class="flex">
@@ -95,7 +108,7 @@
             Назад
           </button>
           <button
-            :class="{ disabled: filteredTickers().length < 6 }"
+            :class="{ disabled: filteredTickers.length < 6 }"
             @click="page++"
             class="filter-button my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
@@ -104,11 +117,11 @@
         </div>
       </section>
 
-      <template v-if="filteredTickers().length">
+      <template v-if="filteredTickers.length">
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="ticker in filteredTickers()"
+            v-for="ticker in filteredTickers"
             :key="ticker.name"
             @click="selectTicker(ticker)"
             :class="{
@@ -155,7 +168,7 @@
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
             class="bg-purple-800 border w-10"
-            v-for="(bar, ind) in normGraph()"
+            v-for="(bar, ind) in normGraph"
             :style="{ height: `${bar}%`, minHeight: '5%' }"
             :key="ind"
           ></div>
@@ -224,8 +237,6 @@ export default {
         this.updTickerInfo(ticker.name)
       })
     }
-
-    console.log(this.filteredTickers())
   },
   methods: {
     inputTicker() {
@@ -275,12 +286,7 @@ export default {
       this.tickers = this.tickers.filter((t) => t !== ticker)
       this.updLocalStorage(this.tickers)
     },
-    normGraph() {
-      const max = Math.max(...this.graph)
-      const min = Math.min(...this.graph)
 
-      return this.graph.map((price) => 5 + ((price - min) * 95) / (max - min))
-    },
     checkTickerInArray(name) {
       return !this.tickers.filter(
         (t) => name.toLowerCase() === t.name.toLowerCase()
@@ -296,16 +302,6 @@ export default {
     updLocalStorage(tickers) {
       localStorage.setItem("crypto-list", JSON.stringify(tickers))
     },
-    filteredTickers() {
-      const start = +this.page * 6
-      const end = (+this.page + 1) * 6
-
-      return this.tickers
-        .filter((ticker) =>
-          ticker.name.toLowerCase().includes(this.filter.toLowerCase())
-        )
-        .slice(start, end)
-    },
     pushStateWithChange() {
       window.history.pushState(
         null,
@@ -318,6 +314,12 @@ export default {
     await this.getTips()
   },
   computed: {
+    startIndex() {
+      return +this.page * 6
+    },
+    endIndex() {
+      return (+this.page + 1) * 6
+    },
     formatTips() {
       if (!this.tips.Data) return []
       const tipsArray = Object.values(this.tips.Data)
@@ -327,6 +329,19 @@ export default {
           t.FullName.toLowerCase().indexOf(this.ticker.toLowerCase()) !== -1
         )
       })
+    },
+    filteredTickers() {
+      return this.tickers
+        .filter((ticker) =>
+          ticker.name.toLowerCase().includes(this.filter.toLowerCase())
+        )
+        .slice(+this.startIndex, +this.endIndex)
+    },
+    normGraph() {
+      const max = Math.max(...this.graph)
+      const min = Math.min(...this.graph)
+
+      return this.graph.map((price) => 5 + ((price - min) * 95) / (max - min))
     },
   },
   watch: {
