@@ -300,9 +300,6 @@ export default {
       const start = +this.page * 6
       const end = (+this.page + 1) * 6
 
-      console.log(end)
-      console.log(start)
-
       return this.tickers
         .filter((ticker) =>
           ticker.name.toLowerCase().includes(this.filter.toLowerCase())
@@ -336,7 +333,6 @@ export default {
     filter() {
       this.page = 0
       this.pushStateWithChange()
-      console.log("oijk")
     },
     page() {
       this.pushStateWithChange()
