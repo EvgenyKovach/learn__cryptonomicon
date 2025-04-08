@@ -26,16 +26,23 @@
     <!--    </div>-->
     <!-- 
       @todo 
-      2. При удалении не сбрасывается interval timer | crit 
-      7. График ужасно выглядит если будет много цен |  crit  
-      8. Наличие в состоянии зависимых данных | crit
-      3. Кол-во запросов (сократить) | crit 
-      4. Запросы кода напрямую в коде (???) | crit 
-      5. Обработка ошибок (api) | crit 
-      1. Одинаковый код в watch | major
-      9. localStorage и анонимные вкладки | major 
-      6. Удаление тикера не измения localStorage | minor
-      10. Маг. строки и числа (url, 5000ms задержки, ключ, кол-во запросов на стр) | minor
+    []  2. При удалении не сбрасывается interval timer | crit 
+    []  7. График ужасно выглядит если будет много цен |  crit  
+    []  8. Наличие в состоянии зависимых данных | crit
+    []  3. Кол-во запросов (сократить) | crit 
+    []  4. Запросы кода напрямую в коде (???) | crit 
+    []  5. Обработка ошибок (api) | crit 
+    []  1. Одинаковый код в watch | major
+    []  9. localStorage и анонимные вкладки | major 
+    []  6. Удаление тикера не измения localStorage | minor
+    []  10. Маг. строки и числа (url, 5000ms задержки, ключ, кол-во запросов на стр) | minor
+
+      --
+      Дополнительно
+    []  1. График сломан, если везде один-е значения
+    []  2. При удалении тикера остается выборанный
+    []  3. При удалении тикеров со страницы, мнять
+    [X]  4. Замена имени у current > selectedTicker
     -->
     <div class="container">
       <section>
@@ -108,7 +115,7 @@
             Назад
           </button>
           <button
-            :class="{ disabled: filteredTickers.length < 6 }"
+            :class="{ disabled: !hasNextPage }"
             @click="page++"
             class="filter-button my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
@@ -121,11 +128,11 @@
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="ticker in filteredTickers"
+            v-for="ticker in paginationTickers"
             :key="ticker.name"
             @click="selectTicker(ticker)"
             :class="{
-              'border-4': current === ticker,
+              'border-4': selectedTicker === ticker,
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -134,7 +141,7 @@
                 {{ ticker.name }} - USD
               </dt>
               <dd class="mt-1 text-3xl font-semibold text-gray-900">
-                {{ ticker.count }}
+                {{ +ticker.count === 0 ? "> 0.001" : ticker.count }}
               </dd>
             </div>
             <div class="w-full border-t border-gray-200"></div>
@@ -161,14 +168,14 @@
         </dl>
         <hr class="w-full border-t border-gray-600 my-4" />
       </template>
-      <section class="relative" v-if="current">
+      <section class="relative" v-if="selectedTicker">
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
-          {{ current.name + " - USD" }}
+          {{ selectedTicker.name + " - USD" }}
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
             class="bg-purple-800 border w-10"
-            v-for="(bar, ind) in normGraph"
+            v-for="(bar, ind) in normalizeGraph"
             :style="{ height: `${bar}%`, minHeight: '5%' }"
             :key="ind"
           ></div>
@@ -176,7 +183,7 @@
         <button
           type="button"
           class="absolute top-0 right-0"
-          @click="current = null"
+          @click="selectedTicker = null"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -212,12 +219,13 @@ export default {
     return {
       ticker: "",
       tickers: [],
-      current: null,
+      selectedTicker: null,
       graph: [],
       hasAlready: false,
       tips: [],
       filter: "",
       page: 0,
+      apiIntrevalRequest: () => {},
     }
   },
   created() {
@@ -243,7 +251,7 @@ export default {
       this.hasAlready = false
     },
     selectTicker(t) {
-      this.current = t
+      this.selectedTicker = t
       this.graph = []
     },
     addTicker(name) {
@@ -253,54 +261,55 @@ export default {
       }
 
       if (this.checkTickerInArray(newTicker.name)) {
-        this.tickers.push(newTicker)
-        setInterval(async () => {
-          this.updTickerInfo(newTicker.name)
-        }, 3000)
+        this.tickers = [newTicker, ...this.tickers]
+        this.updTickerInfo()
       } else {
         this.hasAlready = true
       }
-
-      this.updLocalStorage(this.tickers)
     },
-    updTickerInfo(tickerName) {
-      setInterval(async () => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=9731ee504a34185c95f10c8219a7ccd5fb9efbf893ff97091c683545fe740e2c`
-        )
+    updTickerInfo() {
+      const tickersList = this.tickers.map((t) => t.name)
 
-        const data = await f.json()
+      clearInterval(this.apiIntrevalRequest)
 
-        if (data["USD"]) {
-          this.tickers.find((t) => t.name === tickerName).count =
-            data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2)
-        }
+      if (tickersList.length) {
+        const tickersListToStr = tickersList.join(",")
+        this.apiIntrevalRequest = setInterval(async () => {
+          const f = await fetch(
+            `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${tickersListToStr}&tsyms=USD&api_key=442cefa86d2ef5c7ca29db8412ad9f4b63dc7304159088e541fb3e62954f6e69`
+          )
 
-        if (this.current?.name === tickerName) {
-          this.graph.push(data.USD)
-          this.graph.length > 30 ? this.graph.shift() : ""
-        }
-      }, 3000)
+          const data = await f.json()
+
+          if (this.selectedTicker?.name) {
+            this.graph.push(data[this.selectedTicker.name])
+            this.graph.length > 30 ? this.graph.shift() : ""
+          }
+
+          this.tickers.forEach((currency) => {
+            if (data[currency.name]) {
+              currency.count = data[currency.name]["USD"].toFixed(2)
+            }
+          })
+        }, 3000)
+      }
     },
     delTicker(ticker) {
-      this.tickers = this.tickers.filter((t) => t !== ticker)
-      this.updLocalStorage(this.tickers)
+      this.tickers = [...this.tickers.filter((t) => t !== ticker)]
+      this.updTickerInfo()
     },
-
     checkTickerInArray(name) {
-      return !this.tickers.filter(
-        (t) => name.toLowerCase() === t.name.toLowerCase()
-      ).length
+      return (
+        !this.tickers.filter((t) => name.toLowerCase() === t.name.toLowerCase())
+          .length && this.cointList.includes(name)
+      )
     },
     async getTips() {
       const f = await fetch(
-        `https://min-api.cryptocompare.com/data/all/coinlist?summary=true`
+        `https://min-api.cryptocompare.com/data/all/coinlist`
       )
 
       this.tips = await f.json()
-    },
-    updLocalStorage(tickers) {
-      localStorage.setItem("crypto-list", JSON.stringify(tickers))
     },
     pushStateWithChange() {
       window.history.pushState(
@@ -326,30 +335,51 @@ export default {
 
       return tipsArray.filter((t) => {
         return (
-          t.FullName.toLowerCase().indexOf(this.ticker.toLowerCase()) !== -1
+          t.FullName.toLowerCase().indexOf(this.ticker.toLowerCase()) !== -1 &&
+          t.IsTrading
         )
       })
     },
     filteredTickers() {
-      return this.tickers
-        .filter((ticker) =>
-          ticker.name.toLowerCase().includes(this.filter.toLowerCase())
-        )
-        .slice(+this.startIndex, +this.endIndex)
+      return this.tickers.filter((ticker) =>
+        ticker.name.toLowerCase().includes(this.filter.toLowerCase())
+      )
     },
-    normGraph() {
+    paginationTickers() {
+      return this.filteredTickers.slice(+this.startIndex, +this.endIndex)
+    },
+    normalizeGraph() {
       const max = Math.max(...this.graph)
       const min = Math.min(...this.graph)
 
-      return this.graph.map((price) => 5 + ((price - min) * 95) / (max - min))
+      if (min === max) {
+        return this.graph.map(() => 50)
+      } else {
+        return this.graph.map((price) => 5 + ((price - min) * 95) / (max - min))
+      }
+    },
+    hasNextPage() {
+      return this.filteredTickers.length > (this.page + 1) * 6
+    },
+    pageOptions() {
+      return {
+        filter: this.filter,
+        page: this.page,
+      }
+    },
+    cointList() {
+      return this.formatTips.map((coin) => coin.Symbol)
     },
   },
   watch: {
+    tickers() {
+      localStorage.setItem("crypto-list", JSON.stringify(this.tickers))
+    },
     filter() {
       this.page = 0
       this.pushStateWithChange()
     },
-    page() {
+    pageOptions() {
       this.pushStateWithChange()
     },
   },
