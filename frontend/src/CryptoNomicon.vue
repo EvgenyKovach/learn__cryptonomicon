@@ -26,23 +26,24 @@
     <!--    </div>-->
     <!-- 
       @todo 
-    []  2. При удалении не сбрасывается interval timer | crit 
-    []  7. График ужасно выглядит если будет много цен |  crit  
-    []  8. Наличие в состоянии зависимых данных | crit
-    []  3. Кол-во запросов (сократить) | crit 
-    []  4. Запросы кода напрямую в коде (???) | crit 
-    []  5. Обработка ошибок (api) | crit 
-    []  1. Одинаковый код в watch | major
-    []  9. localStorage и анонимные вкладки | major 
-    []  6. Удаление тикера не измения localStorage | minor
-    []  10. Маг. строки и числа (url, 5000ms задержки, ключ, кол-во запросов на стр) | minor
+    [X]  2. При удалении не сбрасывается interval timer | crit 
+    [Х]  1. Одинаковый код в watch | major \\ я оптимизировал эту часть изначально
+    [X]  3. Кол-во запросов (сократить) | crit \\ сокращено до 1 + на старте лист + убрали запрос не валидных валют
+    [?]  7. График ужасно выглядит если будет много цен |  crit  \\ вроде всё ок, уходяд лишние
 
+    [?]  8. Наличие в состоянии зависимых данных | crit \\ надо будет узнать, о каких шла речь
+    [?]  4. Запросы кода напрямую в коде (???) | crit  \\ не пон
+    [?]  6. Удаление тикера не измения localStorage | minor \\ 
+
+    []  5. Обработка ошибок (api) | crit
+    []  9. localStorage и анонимные вкладки | major  \\ не пон
+    []  10. Маг. строки и числа (url, 5000ms задержки, ключ, кол-во запросов на стр) | minor \\ слишком разбитый минор, что-то сократили в коде из этого, пока на карандаше
       --
       Дополнительно
-    []  1. График сломан, если везде один-е значения
-    []  2. При удалении тикера остается выборанный
-    []  3. При удалении тикеров со страницы, мнять
     [X]  4. Замена имени у current > selectedTicker
+    [X]  1. График сломан, если везде один-е значения
+    [X]  2. При удалении тикера остается выборанный
+    []  3. При удалении тикеров со страницы, мнять
     -->
     <div class="container">
       <section>
@@ -253,6 +254,7 @@ export default {
     selectTicker(t) {
       this.selectedTicker = t
       this.graph = []
+      this.updTickerInfo()
     },
     addTicker(name) {
       const newTicker = {
@@ -282,7 +284,8 @@ export default {
           const data = await f.json()
 
           if (this.selectedTicker?.name) {
-            this.graph.push(data[this.selectedTicker.name])
+            this.graph.push(data[this.selectedTicker.name].USD)
+
             this.graph.length > 30 ? this.graph.shift() : ""
           }
 
@@ -296,6 +299,9 @@ export default {
     },
     delTicker(ticker) {
       this.tickers = [...this.tickers.filter((t) => t !== ticker)]
+      if (this.selectedTicker.name === ticker.name) {
+        this.selectedTicker = null
+      }
       this.updTickerInfo()
     },
     checkTickerInArray(name) {
