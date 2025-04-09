@@ -29,8 +29,8 @@
     [X]  2. При удалении не сбрасывается interval timer | crit 
     [Х]  1. Одинаковый код в watch | major \\ я оптимизировал эту часть изначально
     [X]  3. Кол-во запросов (сократить) | crit \\ сокращено до 1 + на старте лист + убрали запрос не валидных валют
-    [?]  7. График ужасно выглядит если будет много цен |  crit  \\ вроде всё ок, уходяд лишние
 
+    [?]  7. График ужасно выглядит если будет много цен |  crit  \\ вроде всё ок, уходяд лишние
     [?]  8. Наличие в состоянии зависимых данных | crit \\ надо будет узнать, о каких шла речь
     [?]  4. Запросы кода напрямую в коде (???) | crit  \\ не пон
     [?]  6. Удаление тикера не измения localStorage | minor \\ 
@@ -142,7 +142,7 @@
                 {{ ticker.name }} - USD
               </dt>
               <dd class="mt-1 text-3xl font-semibold text-gray-900">
-                {{ +ticker.count === 0 ? "> 0.001" : ticker.count }}
+                {{ +ticker.count === 0 ? "> 0.01" : ticker.count }}
               </dd>
             </div>
             <div class="w-full border-t border-gray-200"></div>
@@ -272,6 +272,8 @@ export default {
     updTickerInfo() {
       const tickersList = this.tickers.map((t) => t.name)
 
+      console.log("work")
+
       clearInterval(this.apiIntrevalRequest)
 
       if (tickersList.length) {
@@ -299,7 +301,8 @@ export default {
     },
     delTicker(ticker) {
       this.tickers = [...this.tickers.filter((t) => t !== ticker)]
-      if (this.selectedTicker.name === ticker.name) {
+      console.log(this.selectedTicker)
+      if (this.selectedTicker?.name === ticker.name) {
         this.selectedTicker = null
       }
       this.updTickerInfo()
@@ -387,6 +390,12 @@ export default {
     },
     pageOptions() {
       this.pushStateWithChange()
+    },
+    paginationTickers() {
+      console.log(this.paginationTickers)
+      if (this.paginationTickers.length === 0 && this.page > 0) {
+        this.page--
+      }
     },
   },
 }
