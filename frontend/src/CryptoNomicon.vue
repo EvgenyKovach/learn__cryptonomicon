@@ -29,13 +29,13 @@
     [X]  2. При удалении не сбрасывается interval timer | crit 
     [Х]  1. Одинаковый код в watch | major \\ я оптимизировал эту часть изначально
     [X]  3. Кол-во запросов (сократить) | crit \\ сокращено до 1 + на старте лист + убрали запрос не валидных валют
+    [Х]  6. Удаление тикера не измения localStorage | minor \\ После внесение его в watch все изменилось
+    [Х]  5. Обработка ошибок (api) | crit \\ на уровне тестового проекта валидация добавлена
 
     [?]  7. График ужасно выглядит если будет много цен |  crit  \\ вроде всё ок, уходяд лишние
     [?]  8. Наличие в состоянии зависимых данных | crit \\ надо будет узнать, о каких шла речь
     [?]  4. Запросы кода напрямую в коде (???) | crit  \\ не пон
-    [?]  6. Удаление тикера не измения localStorage | minor \\ 
-
-    []  5. Обработка ошибок (api) | crit
+    
     []  9. localStorage и анонимные вкладки | major  \\ не пон
     []  10. Маг. строки и числа (url, 5000ms задержки, ключ, кол-во запросов на стр) | minor \\ слишком разбитый минор, что-то сократили в коде из этого, пока на карандаше
       --
@@ -43,7 +43,7 @@
     [X]  4. Замена имени у current > selectedTicker
     [X]  1. График сломан, если везде один-е значения
     [X]  2. При удалении тикера остается выборанный
-    []  3. При удалении тикеров со страницы, мнять
+    [X]  3. При удалении тикеров со страницы, мeнять localStorage и страницу 
     -->
     <div class="container">
       <section>
@@ -60,6 +60,7 @@
                 class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
                 placeholder="Например DOGE"
                 v-model="ticker"
+                :disabled="disableInterface"
                 @input="inputTicker"
               />
             </div>
@@ -79,11 +80,15 @@
             <div v-if="hasAlready" class="text-sm text-red-600">
               Такой тикер уже добавлен
             </div>
+            <div v-if="errors.coinlist" class="text-sm text-red-600">
+              {{ errors.coinlist }}
+            </div>
           </div>
         </div>
         <button
           @click.stop="addTicker()"
           type="button"
+          :class="[{ disabled: disableInterface }]"
           class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
           <!-- Heroicon name: solid/mail -->
@@ -126,6 +131,9 @@
       </section>
 
       <template v-if="filteredTickers.length">
+        <div v-if="errors.tickers" class="text-sm text-red-600">
+          {{ errors.tickers }}
+        </div>
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
@@ -226,7 +234,11 @@ export default {
       tips: [],
       filter: "",
       page: 0,
-      apiIntrevalRequest: () => {},
+
+      apiIntrevalRequest: null,
+      graphInterval: null,
+      disableInterface: false,
+      errors: {},
     }
   },
   created() {
@@ -243,7 +255,7 @@ export default {
       this.tickers = JSON.parse(tickersData)
       this.filtredTickers = this.tickers
       this.tickers.forEach((ticker) => {
-        this.updTickerInfo(ticker.name)
+        this.changeIntervalTickers(ticker.name)
       })
     }
   },
@@ -254,7 +266,7 @@ export default {
     selectTicker(t) {
       this.selectedTicker = t
       this.graph = []
-      this.updTickerInfo()
+      this.changeIntervalTickers()
     },
     addTicker(name) {
       const newTicker = {
@@ -264,48 +276,51 @@ export default {
 
       if (this.checkTickerInArray(newTicker.name)) {
         this.tickers = [newTicker, ...this.tickers]
-        this.updTickerInfo()
+        this.changeIntervalTickers()
       } else {
         this.hasAlready = true
       }
     },
-    updTickerInfo() {
+    changeIntervalTickers() {
       const tickersList = this.tickers.map((t) => t.name)
-
-      console.log("work")
 
       clearInterval(this.apiIntrevalRequest)
 
       if (tickersList.length) {
         const tickersListToStr = tickersList.join(",")
         this.apiIntrevalRequest = setInterval(async () => {
-          const f = await fetch(
-            `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${tickersListToStr}&tsyms=USD&api_key=442cefa86d2ef5c7ca29db8412ad9f4b63dc7304159088e541fb3e62954f6e69`
+          await fetch(
+            `https://min-api.cryptocompare.com/data/price1multi?fsyms=${tickersListToStr}&tsyms=USD&api_key=442cefa86d2ef5c7ca29db8412ad9f4b63dc7304159088e541fb3e62954f6e69`
           )
+            .then((r) => {
+              const data = r.json()
 
-          const data = await f.json()
-
-          if (this.selectedTicker?.name) {
-            this.graph.push(data[this.selectedTicker.name].USD)
-
-            this.graph.length > 30 ? this.graph.shift() : ""
-          }
-
-          this.tickers.forEach((currency) => {
-            if (data[currency.name]) {
-              currency.count = data[currency.name]["USD"].toFixed(2)
-            }
-          })
+              if (data.Response === "Error") {
+                this.errors.tickers =
+                  "Ошибка при попытке получить данные о валютах"
+              } else {
+                this.errors.tickers = null
+                this.tickers.forEach((currency) => {
+                  if (data[currency.name]) {
+                    currency.count = data[currency.name]["USD"].toFixed(2)
+                  }
+                })
+              }
+            })
+            .catch(() => {
+              this.errors.tickers =
+                "Ошибка при попытке получить данные о валютах"
+            })
         }, 3000)
       }
     },
     delTicker(ticker) {
       this.tickers = [...this.tickers.filter((t) => t !== ticker)]
-      console.log(this.selectedTicker)
+
       if (this.selectedTicker?.name === ticker.name) {
         this.selectedTicker = null
       }
-      this.updTickerInfo()
+      this.changeIntervalTickers()
     },
     checkTickerInArray(name) {
       return (
@@ -314,11 +329,25 @@ export default {
       )
     },
     async getTips() {
-      const f = await fetch(
-        `https://min-api.cryptocompare.com/data/all/coinlist`
-      )
+      await fetch(`https://min-api.cryptocompare.com/data/all/coinli1st`)
+        .then((r) => {
+          const data = r.json()
 
-      this.tips = await f.json()
+          console.log(r)
+
+          if (data.Response === "Error") {
+            this.disableInterface = true
+            this.errors.coinlist =
+              "Ошибка при попытке получить данные о списке валют"
+          } else {
+            this.errors.cointst = null
+            this.tips = data
+          }
+        })
+        .catch(() => {
+          this.errors.coinlist =
+            "Ошибка при попытке получить данные о списке валют"
+        })
     },
     pushStateWithChange() {
       window.history.pushState(
@@ -392,10 +421,22 @@ export default {
       this.pushStateWithChange()
     },
     paginationTickers() {
-      console.log(this.paginationTickers)
       if (this.paginationTickers.length === 0 && this.page > 0) {
         this.page--
       }
+    },
+    selectedTicker() {
+      if (this.selectedTicker?.name) {
+        clearInterval(this.graphInterval)
+        this.graphInterval = setInterval(() => {
+          const getTickerInfo = this.tickers.filter(
+            (ticker) => ticker.name === this.selectedTicker.name
+          )
+
+          this.graph.push(getTickerInfo[0].count)
+          this.graph.length > 30 ? this.graph.shift() : ""
+        }, 3000)
+      } else clearInterval(this.graphInterval)
     },
   },
 }
